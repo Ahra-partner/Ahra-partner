@@ -7,69 +7,46 @@ class AdminHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Approval'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Admin Approval')),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('partners')
-            .where('kycSubmitted', isEqualTo: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance.collection('partners').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Error loading data'));
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data!.docs;
-
-          if (docs.isEmpty) {
-            return const Center(child: Text('No pending KYC requests'));
-          }
+          final partners = snapshot.data!.docs;
 
           return ListView.builder(
-            itemCount: docs.length,
+            itemCount: partners.length,
             itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final docId = docs[index].id;
+              final doc = partners[index];
+              final data = doc.data() as Map<String, dynamic>;
 
               return Card(
-                margin: const EdgeInsets.all(10),
                 child: ListTile(
-                  title: Text(data['name'] ?? 'No name'),
-                  subtitle: Text(
-                    'Status: ${data['kycStatus']}',
-                  ),
+                  title: Text(data['name'] ?? 'No Name'),
+                  subtitle: Text('Status: ${data['kycStatus']}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ✅ APPROVE
                       IconButton(
                         icon: const Icon(Icons.check, color: Colors.green),
                         onPressed: () {
                           FirebaseFirestore.instance
                               .collection('partners')
-                              .doc(docId)
-                              .update({
-                            'kycStatus': 'approved',
-                          });
+                              .doc(doc.id)
+                              .update({'kycStatus': 'approved'});
                         },
                       ),
-
-                      // ❌ REJECT
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.red),
                         onPressed: () {
                           FirebaseFirestore.instance
                               .collection('partners')
-                              .doc(docId)
-                              .update({
-                            'kycStatus': 'rejected',
-                          });
+                              .doc(doc.id)
+                              .update({'kycStatus': 'rejected'});
                         },
                       ),
                     ],
