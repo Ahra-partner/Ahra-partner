@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'partner_dashboard.dart';
-import 'kyc_pending_screen.dart';
+import 'admin_home_screen.dart';
+import 'home_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  final String partnerId;
+class AppRouter extends StatelessWidget {
+  final String userId; // dummy_partner_001 / admin_001
 
-  const HomeScreen({super.key, required this.partnerId});
+  const AppRouter({super.key, required this.userId});
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('partners')
-          .doc(partnerId)
+          .doc(userId)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -23,14 +23,17 @@ class HomeScreen extends StatelessWidget {
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
-        final status = data['kycStatus'];
-        final name = data['name'] ?? 'Partner';
+        final role = data['role'];
 
-        if (status == 'approved') {
-          return PartnerDashboard(partnerName: name);
-        } else {
-          return KYCPendingScreen(status: status);
+        // 🔐 ADMIN
+        if (role == 'admin') {
+          return const AdminHomeScreen();
         }
+
+        // 👤 PARTNER
+        return HomeScreen(
+          partnerId: userId,
+        );
       },
     );
   }
