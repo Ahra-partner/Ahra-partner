@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ============================
+       🔹 HELPER FUNCTIONS
+    ============================ */
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function isAdmin() {
+      return isLoggedIn() &&
+        userDoc().data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn() &&
+        userDoc().data.role == 'partner';
+    }
+
+    function partnerId() {
+      return userDoc().data.partnerId;
+    }
+
+    /* ============================
+       🔹 USERS COLLECTION
+    ============================ */
+    match /users/{uid} {
+      // User can read own profile
+      allow read: if isLoggedIn() && request.auth.uid == uid;
+
+      // Only admin can manage users
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ============================
+       🔹 PARTNERS COLLECTION
+    ============================ */
+    match /partners/{partnerIdDoc} {
+
+      // ✅ ADMIN → full access
+      allow read, write: if isAdmin();
+
+      // ✅ PARTNER → read ONLY own partner doc
+      allow read: if isPartner()
+        && partnerId() == partnerIdDoc;
+
+      // ❌ PARTNER can NEVER write
+      allow write: if false;
+    }
+
+    /* ============================
+       🔹 WALLET LEDGER (🔥 QUERY SAFE – FINAL FIX)
+    ============================ */
+    match /wallet_ledger/{docId} {
+
+      // ✅ ADMIN → full access
+      allow read, write: if isAdmin();
+
+      // ✅ PARTNER → read ONLY own ledger (QUERY SAFE)
+      // Required for where() queries
+      allow read: if isPartner()
+        && request.query != null
+        && request.query.where.partnerId == partnerId();
+
+      // ❌ NO writes from app
+      allow write: if false;
+    }
+
+    /* ============================
+       🔹 WITHDRAW REQUESTS
+    ============================ */
+    match /withdraw_requests/{docId} {
+
+      // ✅ ADMIN → full access
+      allow read, update, delete: if isAdmin();
+
+      // ✅ PARTNER → create own withdraw request
+      allow create: if isPartner()
+        && request.resource.data.partnerId == partnerId();
+
+      // ✅ PARTNER → read ONLY own requests
+      allow read: if isPartner()
+        && resource.data.partnerId == partnerId();
+
+      // ❌ PARTNER can NEVER update/delete
+      allow update, delete: if false;
+    }
+  }
+}
