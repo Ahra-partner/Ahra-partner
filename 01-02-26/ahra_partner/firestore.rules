@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isLoggedIn() && userDoc().data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn() && userDoc().data.role == 'partner';
+    }
+
+    function partnerId() {
+      return userDoc().data.partnerId;
+    }
+
+    match /users/{uid} {
+      allow read: if isLoggedIn() && request.auth.uid == uid;
+    }
+
+    // 🔥 TEMP FIX – allow partner to read own partner doc
+    match /partners/{pid} {
+      allow read: if isPartner() && pid == partnerId();
+      allow write: if false;
+    }
+  }
+}
