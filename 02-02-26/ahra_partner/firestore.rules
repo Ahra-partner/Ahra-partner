@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ========= HELPERS ========= */
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isLoggedIn() && userDoc().data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn() && userDoc().data.role == 'partner';
+    }
+
+    function partnerId() {
+      return userDoc().data.partnerId;
+    }
+
+    /* ========= USERS ========= */
+    match /users/{uid} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    /* ========= PARTNERS ========= */
+    match /partners/{pid} {
+      allow read, write: if isAdmin();      // 🔥 ADMIN FULL ACCESS
+      allow read: if isPartner() && pid == partnerId();
+    }
+
+    /* ========= WALLET LEDGER ========= */
+    match /wallet_ledger/{docId} {
+      allow read, write: if isAdmin();      // 🔥 ADMIN FULL ACCESS
+      allow read: if isPartner()
+        && request.query != null
+        && request.query.where.partnerId == partnerId();
+    }
+
+    /* ========= WITHDRAW REQUESTS ========= */
+    match /withdraw_requests/{docId} {
+      allow read, write: if isAdmin();      // 🔥 ADMIN FULL ACCESS
+      allow create: if isPartner()
+        && request.resource.data.partnerId == partnerId();
+      allow read: if isPartner()
+        && resource.data.partnerId == partnerId();
+    }
+  }
+}
