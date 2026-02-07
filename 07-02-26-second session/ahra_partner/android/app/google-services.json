@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "917918838948",
+    "project_id": "ahra-partner-fc558",
+    "storage_bucket": "ahra-partner-fc558.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:917918838948:android:16604182b2dea230aab631",
+        "android_client_info": {
+          "package_name": "com.example.ahra_partner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqxKd-Rcj260oFlnVWefWhEKqKK-G288g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
