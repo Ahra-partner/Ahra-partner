@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner';
+    }
+
+    /* USERS */
+    match /users/{uid} {
+      allow read, write: if isLoggedIn();
+    }
+
+    /* PARTNERS — 🔥 ONBOARDING SAFE */
+    match /partners/{pid} {
+      // ✅ FIRST TIME CREATE (no role dependency)
+      allow create: if isLoggedIn() && pid == request.auth.uid;
+
+      // ✅ Partner can read/update only own doc
+      allow read, update: if isPartner() && pid == request.auth.uid;
+
+      // ✅ Admin full access
+      allow read, write: if isAdmin();
+    }
+
+    /* WALLET */
+    match /wallet_ledger/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    /* WITHDRAW REQUESTS */
+    match /withdraw_requests/{docId} {
+      allow read, write: if isAdmin();
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+    }
+  }
+}
