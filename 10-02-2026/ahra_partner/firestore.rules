@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ================= HELPERS ================= */
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner';
+    }
+
+    /* ================= USERS ================= */
+
+    match /users/{uid} {
+      allow read, write: if isLoggedIn() && uid == request.auth.uid;
+    }
+
+    /* ================= PARTNERS ================= */
+
+    match /partners/{pid} {
+      // ✅ First time create (onboarding)
+      allow create: if isLoggedIn() && pid == request.auth.uid;
+
+      // ✅ Partner reads/updates own profile
+      allow read, update: if isPartner() && pid == request.auth.uid;
+
+      // ✅ Admin full access
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= FARMERS ================= */
+
+    match /farmers/{farmerId} {
+
+      // ✅ Partner can ADD farmer (only for himself)
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      // ✅ Partner can READ only his farmers
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      // ❌ Partner CANNOT update/delete farmers
+      allow update, delete: if false;
+
+      // ✅ Admin full control
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= WALLET LEDGER ================= */
+
+    match /wallet_ledger/{docId} {
+      // Only admin reads/writes ledger
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= WITHDRAW REQUESTS ================= */
+
+    match /withdraw_requests/{docId} {
+
+      // ✅ Partner creates own withdraw request
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      // ✅ Partner reads own requests
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      // ✅ Admin full access
+      allow read, write: if isAdmin();
+    }
+  }
+}
