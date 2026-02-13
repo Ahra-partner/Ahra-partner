@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ================= HELPERS ================= */
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.role == 'partner';
+    }
+
+    /* ================= USERS ================= */
+
+    match /users/{uid} {
+      allow read, write: if isLoggedIn() && uid == request.auth.uid;
+    }
+
+    /* ================= PARTNERS (WALLET + EARNINGS) ================= */
+
+    match /partners/{pid} {
+
+      // Partner can read & update own profile + wallet + earnings
+      allow read, write: if isPartner()
+        && pid == request.auth.uid;
+
+      // Admin full access
+      allow read, write: if isAdmin();
+
+      /* ===== BANK DETAILS (NEW – FIX) ===== */
+
+      match /bankDetails/{docId} {
+        allow read, write: if isPartner()
+          && pid == request.auth.uid;
+
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= FARMERS ================= */
+
+    match /farmers/{farmerId} {
+
+      // CREATE farmer
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      // READ farmer
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      // UPDATE farmer
+      allow update: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      // DELETE not allowed
+      allow delete: if false;
+
+      // Admin full access
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= FARMER SUBSCRIPTIONS ================= */
+
+    match /farmers/{farmerId}/subscriptions/{subId} {
+
+      allow read: if isPartner();
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      // Partner can update ONLY status = paid
+      allow update: if isPartner()
+        && resource.data.partnerId == request.auth.uid
+        && request.resource.data.status == 'paid';
+
+      allow delete: if false;
+
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= WALLET LEDGER ================= */
+
+    match /wallet_ledger/{docId} {
+
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= DAILY STATS ================= */
+
+    match /daily_stats/{docId} {
+
+      allow create, update: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= WITHDRAW REQUESTS ================= */
+
+    match /withdraw_requests/{docId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow update, delete: if false;
+
+      allow read, write: if isAdmin();
+    }
+  }
+}
