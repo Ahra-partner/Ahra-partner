@@ -32,7 +32,7 @@ class PartnerDashboardV2 extends StatelessWidget {
     final lang = context.watch<LanguageProvider>().lang;
     final t = AppStrings(lang);
 
-    // 🔥 LOGGED-IN PARTNER UID
+    // 🔥 LOGGED IN PARTNER UID
     final String partnerId =
         FirebaseAuth.instance.currentUser!.uid;
 
@@ -44,10 +44,6 @@ class PartnerDashboardV2 extends StatelessWidget {
         backgroundColor: primaryGreen,
         title: const Text('AHRA Partner'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: () {},
-          ),
           IconButton(
             icon: const Icon(Icons.language),
             onPressed: () {
@@ -68,65 +64,44 @@ class PartnerDashboardV2 extends StatelessWidget {
       ),
 
       // ================= BODY =================
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<DocumentSnapshot>(
+        key: const ValueKey('partner-wallet-stream'),
         stream: FirebaseFirestore.instance
-            .collection('transactions')
-            .where('partnerId', isEqualTo: partnerId)
+            .collection('partners')
+            .doc(partnerId)
             .snapshots(),
-        builder: (context, snap) {
-          if (snap.connectionState ==
-              ConnectionState.waiting) {
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
             return const Center(
-                child: CircularProgressIndicator());
+              child: CircularProgressIndicator(),
+            );
           }
 
-          final docs = snap.data?.docs ?? [];
-          final now = DateTime.now();
-
-          int wallet = 0;
-          int today = 0;
-          int week = 0;
-          int month = 0;
-
-          // ================= CALCULATION =================
-          for (var d in docs) {
-            final data = d.data() as Map<String, dynamic>;
-
-            final int amount =
-                (data['amount'] as num?)?.toInt() ?? 0;
-            final String type = data['type'] ?? '';
-            final String status = data['status'] ?? '';
-            final DateTime? ts =
-                (data['createdAt'] as Timestamp?)?.toDate();
-
-            if (status != 'approved' &&
-                status != 'completed') continue;
-            if (ts == null) continue;
-
-            if (type == 'credit') wallet += amount;
-            if (type == 'debit') wallet -= amount;
-
-            if (type == 'credit' &&
-                ts.year == now.year &&
-                ts.month == now.month &&
-                ts.day == now.day) {
-              today += amount;
-            }
-
-            final weekStart =
-                now.subtract(Duration(days: now.weekday - 1));
-            if (type == 'credit' && ts.isAfter(weekStart)) {
-              week += amount;
-            }
-
-            if (type == 'credit' &&
-                ts.year == now.year &&
-                ts.month == now.month) {
-              month += amount;
-            }
+          if (!snapshot.data!.exists) {
+            return const Center(
+              child: Text('Wallet data not found'),
+            );
           }
 
-          // ================= UI =================
+          final data =
+              snapshot.data!.data() as Map<String, dynamic>;
+
+          // 🔥 RAW VALUES FROM FIRESTORE (100%)
+          final int rawWallet =
+              data['walletBalance'] ?? 0;
+          final int rawToday =
+              data['todayEarnings'] ?? 0;
+          final int rawWeek =
+              data['weekEarnings'] ?? 0;
+          final int rawMonth =
+              data['monthEarnings'] ?? 0;
+
+          // ✅ FINAL DISPLAY VALUES (50% ONLY)
+          final int wallet = (rawWallet / 2).round();
+          final int today = (rawToday / 2).round();
+          final int week = (rawWeek / 2).round();
+          final int month = (rawMonth / 2).round();
+
           return SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,28 +109,19 @@ class PartnerDashboardV2 extends StatelessWidget {
                 _headerSection(t, partnerName),
                 const SizedBox(height: 16),
 
-                _partnerTypeSelector(context, t),
+                // ✅ PARTNER TYPES
+                _partnerTypeHorizontal(context, t),
                 const SizedBox(height: 16),
 
+                // ✅ WALLET (50% DISPLAY)
                 _walletCard(context, t, wallet, partnerId),
                 const SizedBox(height: 16),
 
                 _paymentModeSelector(t),
                 const SizedBox(height: 16),
 
+                // ✅ EARNINGS (50% DISPLAY)
                 _earnings(t, today, week, month),
-
-                if (docs.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: Center(
-                      child: Text(
-                        t.noTransactions,
-                        style:
-                            const TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  ),
 
                 const SizedBox(height: 40),
               ],
@@ -182,63 +148,85 @@ class PartnerDashboardV2 extends StatelessWidget {
     );
   }
 
-  // ================= PARTNER TYPE SELECTOR =================
-  Widget _partnerTypeSelector(
+  // ================= PARTNER TYPE =================
+  Widget _partnerTypeHorizontal(
       BuildContext context, AppStrings t) {
+    final items = [
+      {
+        'title': t.farmers,
+        'img': 'assets/partner_types/farmer.png',
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const FarmerListScreen(),
+            ),
+          );
+        },
+      },
+      {
+        'title': t.retailers,
+        'img': 'assets/partner_types/retailer.png',
+      },
+      {
+        'title': t.wholesalers,
+        'img': 'assets/partner_types/wholesaler.png',
+      },
+      {
+        'title': t.exporters,
+        'img': 'assets/partner_types/exporter.png',
+      },
+      {
+        'title': t.foodProcessor,
+        'img': 'assets/partner_types/processor.png',
+      },
+    ];
+
     return SizedBox(
-      height: 170,
-      child: ListView(
+      height: 135,
+      child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          _partnerCard(
-            context,
-            title: t.farmers,
-            image: 'assets/partner_types/farmer.png',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const FarmerListScreen(), // ✅ FIX
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _partnerCard(
-    BuildContext context, {
-    required String title,
-    required String image,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 160,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: lightGreen),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(image, height: 60),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w600),
+        itemCount: items.length,
+        itemBuilder: (context, i) {
+          return GestureDetector(
+            onTap: items[i]['onTap'] as VoidCallback? ??
+                () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Coming soon 🚧'),
+                    ),
+                  );
+                },
+            child: Container(
+              width: 120,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: lightGreen),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    items[i]['img'] as String,
+                    height: 42,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    items[i]['title'] as String,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -260,16 +248,18 @@ class PartnerDashboardV2 extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              Text(t.walletBalance,
-                  style:
-                      const TextStyle(color: Colors.white)),
+              Text(
+                t.walletBalance,
+                style: const TextStyle(color: Colors.white),
+              ),
               const SizedBox(height: 8),
               Text(
                 '₹ $wallet',
                 style: const TextStyle(
-                    fontSize: 24,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 12),
               ElevatedButton(

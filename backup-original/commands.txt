@@ -2,3 +2,4 @@ flutter clean
 flutter pub get
 flutter run
 firebase deploy --only firestore:rules
+firebase deploy --only functions
