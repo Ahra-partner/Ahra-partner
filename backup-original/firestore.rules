@@ -1,0 +1,235 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ================= HELPERS ================= */
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.role == 'admin';
+    }
+
+    function isPartner() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.role == 'partner';
+    }
+
+    /* ================= USERS ================= */
+
+    match /users/{uid} {
+      allow read, write: if isLoggedIn() && uid == request.auth.uid;
+    }
+
+    /* ================= PARTNERS ================= */
+
+    match /partners/{pid} {
+
+      allow read, write: if isPartner() && pid == request.auth.uid;
+      allow read, write: if isAdmin();
+
+      match /bankDetails/{docId} {
+        allow read, write: if isPartner() && pid == request.auth.uid;
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= FARMERS ================= */
+
+    match /farmers/{farmerId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow delete: if false;
+
+      allow read, write: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && get(/databases/$(database)/documents/farmers/$(farmerId))
+              .data.partnerId == request.auth.uid;
+
+        allow read, update: if isPartner()
+          && get(/databases/$(database)/documents/farmers/$(farmerId))
+              .data.partnerId == request.auth.uid;
+
+        allow delete: if false;
+
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= RETAILERS ================= */
+
+    match /retailers/{retailerId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow delete: if false;
+
+      allow read, write: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && get(/databases/$(database)/documents/retailers/$(retailerId))
+              .data.partnerId == request.auth.uid;
+
+        allow read, update: if isPartner()
+          && get(/databases/$(database)/documents/retailers/$(retailerId))
+              .data.partnerId == request.auth.uid;
+
+        allow delete: if false;
+
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= WHOLESALERS ================= */
+
+    match /wholesalers/{wholesalerId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow delete: if false;
+
+      allow read, write: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && get(/databases/$(database)/documents/wholesalers/$(wholesalerId))
+              .data.partnerId == request.auth.uid;
+
+        allow read, update: if isPartner()
+          && get(/databases/$(database)/documents/wholesalers/$(wholesalerId))
+              .data.partnerId == request.auth.uid;
+
+        allow delete: if false;
+
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= PROCESSORS ================= */
+
+    match /processors/{processorId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow delete: if false;
+
+      allow read, write: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && get(/databases/$(database)/documents/processors/$(processorId))
+              .data.partnerId == request.auth.uid;
+
+        allow read, update: if isPartner()
+          && get(/databases/$(database)/documents/processors/$(processorId))
+              .data.partnerId == request.auth.uid;
+
+        allow delete: if false;
+
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= EXPORTERS ================= */
+
+    match /exporters/{exporterId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow delete: if false;
+
+      allow read, write: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && get(/databases/$(database)/documents/exporters/$(exporterId))
+              .data.partnerId == request.auth.uid;
+
+        allow read, update: if isPartner()
+          && get(/databases/$(database)/documents/exporters/$(exporterId))
+              .data.partnerId == request.auth.uid;
+
+        allow delete: if false;
+
+        allow read, write: if isAdmin();
+      }
+    }
+
+    /* ================= WALLET LEDGER ================= */
+
+    match /wallet_ledger/{docId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= DAILY STATS ================= */
+
+    match /daily_stats/{docId} {
+
+      allow create, update: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow read, write: if isAdmin();
+    }
+
+    /* ================= WITHDRAW REQUESTS ================= */
+
+    match /withdraw_requests/{docId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if isPartner()
+        && resource.data.partnerId == request.auth.uid;
+
+      allow update, delete: if false;
+
+      allow read, write: if isAdmin();
+    }
+  }
+}
