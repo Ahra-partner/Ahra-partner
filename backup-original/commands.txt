@@ -3,3 +3,8 @@ flutter pub get
 flutter run
 firebase deploy --only firestore:rules
 firebase deploy --only functions
+
+
+flutter clean
+flutter pub get
+flutter build apk --release --dart-define=PARTNER_APP=true
