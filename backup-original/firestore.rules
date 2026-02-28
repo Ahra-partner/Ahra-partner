@@ -29,6 +29,18 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/partners/$(request.auth.uid));
     }
 
+    /* ================= 🔥 ADMINS (SAFE FIX) ================= */
+
+    match /admins/{adminId} {
+
+      // 🔥 IMPORTANT FIX: allow read for logged-in users
+      allow read: if request.auth != null;
+
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
     /* ================= SUPPORT TICKETS ================= */
 
     match /support_tickets/{ticketId} {
@@ -46,6 +58,7 @@ service cloud.firestore {
     /* ================= PARTNERS ================= */
 
     match /partners/{pid} {
+
       allow create: if isLoggedIn() && request.auth.uid == pid;
 
       allow read, update: if (isPartner() && pid == request.auth.uid)
@@ -53,6 +66,19 @@ service cloud.firestore {
         || isSubAdmin();
 
       allow delete: if isAdmin();
+
+      match /bank_details/{docId} {
+
+        allow create, update: if
+          isPartner() && pid == request.auth.uid;
+
+        allow read: if
+          (isPartner() && pid == request.auth.uid)
+          || isAdmin()
+          || isSubAdmin();
+
+        allow delete: if isAdmin();
+      }
     }
 
     /* ================= FARMERS ================= */
@@ -236,7 +262,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /* ================= DAILY STATS (🔥 ADDED FIX) ================= */
+    /* ================= DAILY STATS ================= */
 
     match /daily_stats/{docId} {
 
