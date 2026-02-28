@@ -1,0 +1,312 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ================= COMMON FUNCTIONS ================= */
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    // ✅ Transaction safe admin check (exists removed)
+    function isAdmin() {
+      return request.auth != null
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // ✅ Transaction safe subadmin check
+    function isSubAdmin() {
+      return request.auth != null
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "sub_admin";
+    }
+
+    function isAdminOrSubAdmin() {
+      return isAdmin() || isSubAdmin();
+    }
+
+    // ✅ STRICT partner check restored (IMPORTANT)
+    function isPartner() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/partners/$(request.auth.uid));
+    }
+
+    /* ================= ADMINS ================= */
+
+    match /admins/{adminId} {
+      allow read: if request.auth != null;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /* ================= SUPPORT TICKETS ================= */
+
+    match /support_tickets/{ticketId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow update, delete: if false;
+
+      allow read, write: if isAdmin() || isSubAdmin();
+    }
+
+    /* ================= PARTNERS ================= */
+
+    match /partners/{pid} {
+
+      allow create: if isLoggedIn() && request.auth.uid == pid;
+
+      allow read, update: if (isPartner() && pid == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow delete: if isAdmin();
+
+      match /bank_details/{docId} {
+
+        allow create, update: if
+          isPartner() && pid == request.auth.uid;
+
+        allow read: if
+          (isPartner() && pid == request.auth.uid)
+          || isAdmin()
+          || isSubAdmin();
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ================= FARMERS ================= */
+
+    match /farmers/{farmerId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow delete: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && request.resource.data.partnerId == request.auth.uid;
+
+        allow read: if isPartner()
+          || isAdmin()
+          || isSubAdmin();
+
+        allow update: if
+          isAdmin()
+          || isSubAdmin()
+          || (isPartner()
+              && resource.data.partnerId == request.auth.uid);
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ================= RETAILERS ================= */
+
+    match /retailers/{retailerId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow delete: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && request.resource.data.partnerId == request.auth.uid;
+
+        allow read: if isPartner()
+          || isAdmin()
+          || isSubAdmin();
+
+        allow update: if
+          isAdmin()
+          || isSubAdmin()
+          || (isPartner()
+              && resource.data.partnerId == request.auth.uid);
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ================= WHOLESALERS ================= */
+
+    match /wholesalers/{wholesalerId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow delete: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && request.resource.data.partnerId == request.auth.uid;
+
+        allow read: if isPartner()
+          || isAdmin()
+          || isSubAdmin();
+
+        allow update: if
+          isAdmin()
+          || isSubAdmin()
+          || (isPartner()
+              && resource.data.partnerId == request.auth.uid);
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ================= PROCESSORS ================= */
+
+    match /processors/{processorId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow delete: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && request.resource.data.partnerId == request.auth.uid;
+
+        allow read: if isPartner()
+          || isAdmin()
+          || isSubAdmin();
+
+        allow update: if
+          isAdmin()
+          || isSubAdmin()
+          || (isPartner()
+              && resource.data.partnerId == request.auth.uid);
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ================= EXPORTERS ================= */
+
+    match /exporters/{exporterId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read, update: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow delete: if isAdmin();
+
+      match /subscriptions/{subId} {
+
+        allow create: if isPartner()
+          && request.resource.data.partnerId == request.auth.uid;
+
+        allow read: if isPartner()
+          || isAdmin()
+          || isSubAdmin();
+
+        allow update: if
+          isAdmin()
+          || isSubAdmin()
+          || (isPartner()
+              && resource.data.partnerId == request.auth.uid);
+
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ================= WALLET LEDGER ================= */
+
+    match /wallet_ledger/{docId} {
+
+      allow create: if (isPartner()
+        && request.resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow read: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow update: if isAdmin() || isSubAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ================= DAILY STATS ================= */
+
+    match /daily_stats/{docId} {
+
+      allow create, update: if
+        isAdmin()
+        || isSubAdmin()
+        || (isPartner()
+            && request.resource.data.partnerId == request.auth.uid);
+
+      allow read: if
+        isAdmin()
+        || isSubAdmin()
+        || (isPartner()
+            && resource.data.partnerId == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    /* ================= WITHDRAW REQUESTS ================= */
+
+    match /withdraw_requests/{docId} {
+
+      allow create: if isPartner()
+        && request.resource.data.partnerId == request.auth.uid;
+
+      allow read: if (isPartner()
+        && resource.data.partnerId == request.auth.uid)
+        || isAdmin()
+        || isSubAdmin();
+
+      allow update: if isAdmin() || isSubAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ================= COUNTERS ================= */
+
+    match /counters/{docId} {
+      allow read, write: if isAdmin() || isSubAdmin();
+      allow read: if isPartner();
+      allow delete: if isAdmin();
+    }
+
+  }
+}
