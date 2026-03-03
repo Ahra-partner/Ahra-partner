@@ -1,0 +1,45 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "ahra-partner",
+          "appId": "1:210075791729:android:c1bbaa35f0c780dfcf46d0",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "ahra-partner",
+          "configurations": {
+            "android": "1:210075791729:android:c1bbaa35f0c780dfcf46d0",
+            "ios": "1:210075791729:ios:452d712f72336329cf46d0",
+            "macos": "1:210075791729:ios:452d712f72336329cf46d0",
+            "web": "1:210075791729:web:3eb2dc89857631cecf46d0",
+            "windows": "1:210075791729:web:0f457551d3a31dc7cf46d0"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}
