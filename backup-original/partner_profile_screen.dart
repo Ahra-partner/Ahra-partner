@@ -35,18 +35,24 @@ class _PartnerProfileScreenState
   @override
   void initState() {
     super.initState();
+
     _loadProfile();
+
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _loadProfile();
+      }
+    });
   }
 
   // ================= EMPLOYEE ID GENERATOR =================
 
   Future<String> _generateEmployeeId() async {
-
     final year = DateTime.now().year;
 
     final counterRef = FirebaseFirestore.instance
         .collection('counters')
-        .doc('partnerCounter');
+        .doc('partnerCounter_$year');
 
     return FirebaseFirestore.instance
         .runTransaction((transaction) async {
@@ -56,9 +62,7 @@ class _PartnerProfileScreenState
       int currentNumber = 0;
 
       if (!snapshot.exists) {
-        transaction.set(counterRef, {
-          'currentNumber': 1,
-        });
+        transaction.set(counterRef, {'currentNumber': 1});
         currentNumber = 1;
       } else {
         currentNumber = snapshot['currentNumber'] ?? 0;
@@ -69,137 +73,79 @@ class _PartnerProfileScreenState
       }
 
       final formatted =
-          currentNumber.toString().padLeft(6, '0');
+          currentNumber.toString().padLeft(4, '0');
 
       return "AHRA-$year-$formatted";
     });
   }
 
-  // ================= LOAD PROFILE WITH FULL DEBUG =================
+  // ================= LOAD PROFILE =================
 
   Future<void> _loadProfile() async {
 
-    print("🔥 Firebase App Name: ${FirebaseFirestore.instance.app.name}");
-    print("🔥 Project ID: ${FirebaseFirestore.instance.app.options.projectId}");
-
     final user = FirebaseAuth.instance.currentUser;
-
-    print("👤 Logged UID: ${user?.uid}");
-
-    if (user == null) {
-      print("❌ User is NULL");
-      setState(() => isLoading = false);
-      return;
-    }
+    if (user == null) return;
 
     try {
 
-      final doc = await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection('partners')
-          .doc(user.uid)
-          .get();
+          .doc(user.uid);
 
-      print("📄 Document exists: ${doc.exists}");
-      print("📄 Data: ${doc.data()}");
+      final doc = await docRef.get();
 
       if (!doc.exists) {
-        print("❌ Partner document NOT found");
-        setState(() => isLoading = false);
+
+        final newEmpId = await _generateEmployeeId();
+
+        await docRef.set({
+          'name': '',
+          'email': user.email ?? '',
+          'mobile': user.phoneNumber ?? '',
+          'empId': newEmpId,
+          'pincode': '',
+          'location': '',
+          'designation': 'Relationship Manager',
+          'photoUrl': '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
         return;
       }
 
-      final data =
-          doc.data() as Map<String, dynamic>;
-
-      String currentEmpId =
-          data['empId'] ?? '';
-
-      // 🔥 Generate Employee ID if missing
-      if (currentEmpId.isEmpty) {
-
-        print("⚡ Generating Employee ID...");
-
-        currentEmpId = await _generateEmployeeId();
-
-        await FirebaseFirestore.instance
-            .collection('partners')
-            .doc(user.uid)
-            .update({
-          'empId': currentEmpId,
-        });
-
-        print("✅ Generated Employee ID: $currentEmpId");
-      }
-
-      setState(() {
-        name = data['name'] ?? '';
-        empId = currentEmpId;
-        email = user.email ?? '';
-        mobile = data['mobile'] ?? '';
-        location = data['location'] ?? '';
-        pincode = data['pincode'] ?? '';
-        designation =
-            data['designation'] ?? 'Relationship Manager';
-        photoUrl = data['photoUrl'] ?? '';
-        isLoading = false;
-      });
-
-      print("✅ Profile loaded successfully");
-
-    } catch (e) {
-      print("❌ Error loading profile: $e");
-      setState(() => isLoading = false);
-    }
-  }
-
-  // ================= IMAGE PICK =================
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picked =
-        await ImagePicker().pickImage(source: source);
-
-    if (picked != null) {
-      setState(() {
-        selectedImage = File(picked.path);
-      });
-    }
-  }
-
-  Future<String> _uploadImage(File file) async {
-
-    final user = FirebaseAuth.instance.currentUser!;
-
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('partner_photos')
-        .child('${user.uid}.jpg');
-
-    await ref.putFile(file);
-    return await ref.getDownloadURL();
+    } catch (e) {}
   }
 
   // ================= SAVE PROFILE =================
 
   Future<void> _saveProfile() async {
 
-    if (!_formKey.currentState!.validate()) return;
-
     final user = FirebaseAuth.instance.currentUser!;
     String updatedPhotoUrl = photoUrl;
 
     if (selectedImage != null) {
-      updatedPhotoUrl =
-          await _uploadImage(selectedImage!);
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('partner_photos')
+          .child('${user.uid}.jpg');
+
+      await ref.putFile(selectedImage!);
+      updatedPhotoUrl = await ref.getDownloadURL();
     }
 
     await FirebaseFirestore.instance
         .collection('partners')
         .doc(user.uid)
-        .update({
-      'location': location,
+        .set({
+      'name': name,
+      'mobile': mobile,
+      'email': email,
       'pincode': pincode,
+      'location': location,
+      'designation': designation,
       'photoUrl': updatedPhotoUrl,
-    });
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     setState(() {
       photoUrl = updatedPhotoUrl;
@@ -207,9 +153,7 @@ class _PartnerProfileScreenState
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profile updated successfully'),
-      ),
+      const SnackBar(content: Text('Profile updated')),
     );
   }
 
@@ -218,16 +162,59 @@ class _PartnerProfileScreenState
   @override
   Widget build(BuildContext context) {
 
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("My Profile"),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(isEditing ? Icons.save : Icons.edit),
+            onPressed: () {
+              if (isEditing) {
+                _saveProfile();
+              } else {
+                setState(() {
+                  isEditing = true;
+                });
+              }
+            },
+          )
+        ],
       ),
-      body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('partners')
+            .doc(user!.uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+
+          if (!snapshot.hasData) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+
+          final data =
+              snapshot.data!.data() as Map<String, dynamic>;
+
+          name = data['name'] ?? '';
+          empId = data['empId'] ?? '';
+          email = data['email'] ?? '';
+          mobile = data['mobile'] ?? '';
+          pincode = data['pincode'] ?? '';
+          designation =
+              data['designation'] ?? 'Relationship Manager';
+          photoUrl = data['photoUrl'] ?? '';
+
+          location =
+              "${data['village'] ?? ''}, ${data['mandal'] ?? ''}, ${data['district'] ?? ''}";
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
               child: Column(
                 children: [
 
@@ -238,7 +225,6 @@ class _PartnerProfileScreenState
                             ? FileImage(selectedImage!)
                             : photoUrl.isNotEmpty
                                 ? NetworkImage(photoUrl)
-                                    as ImageProvider
                                 : null,
                     child: photoUrl.isEmpty &&
                             selectedImage == null
@@ -247,24 +233,62 @@ class _PartnerProfileScreenState
                         : null,
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 25),
 
-                  _buildField("Name", name),
-                  _buildField("Employee ID", empId),
-                  _buildField("Email", email),
-                  _buildField("Mobile", mobile),
-                  _buildField("Location", location),
-                  _buildField("Pincode", pincode),
-                  _buildField("Designation", designation),
+                  _buildEditableField("Name", name,
+                      (val) => name = val),
+
+                  _buildReadOnlyField(
+                      "Employee ID", empId),
+
+                  _buildReadOnlyField(
+                      "Email", email),
+
+                  _buildEditableField("Mobile", mobile,
+                      (val) => mobile = val),
+
+                  _buildEditableField("Location", location,
+                      (val) => location = val),
+
+                  _buildEditableField("Pincode", pincode,
+                      (val) => pincode = val),
+
+                  _buildReadOnlyField(
+                      "Designation", designation),
                 ],
               ),
             ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildField(String label, String value) {
+  Widget _buildEditableField(
+      String label,
+      String value,
+      Function(String) onChanged) {
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        initialValue: value,
+        enabled: isEditing,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyField(
+      String label,
+      String value) {
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         initialValue: value,
         enabled: false,
