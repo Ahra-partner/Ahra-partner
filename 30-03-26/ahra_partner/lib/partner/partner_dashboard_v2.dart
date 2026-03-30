@@ -1,0 +1,577 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
+
+import '../language_provider.dart';
+import '../language_screen.dart';
+import '../app_strings.dart';
+
+import '../withdraw/withdraw_router_screen.dart';
+
+import '../partner/farmer_list_screen.dart';
+import '../partner/retailer_list_screen.dart';
+import '../partner/wholesaler_list_screen.dart';
+import '../partner/processor_list_screen.dart';
+import '../partner/exporter_list_screen.dart';
+
+import 'partner_wallet_screen.dart';
+import 'partner_profile_screen.dart';
+import 'partner_id_card_screen.dart';
+import 'partner_support_screen.dart';
+
+// ✅ NEW IMPORT
+import '../partner/partner_pending_requests_screen.dart';
+
+class PartnerDashboardV2 extends StatelessWidget {
+  final String partnerName;
+
+  const PartnerDashboardV2({
+    super.key,
+    required this.partnerName,
+  });
+
+  static const primaryGreen = Color(0xFF2E7D32);
+  static const lightGreen = Color(0xFF66BB6A);
+  static const accentOrange = Color(0xFFE67E22);
+  static const contactRed = Color(0xFFD32F2F);
+  static const bgColor = Color(0xFFF6F8F7);
+
+  Future<void> _saveFcmToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final token = await FirebaseMessaging.instance.getToken();
+
+    if (token != null) {
+      await FirebaseFirestore.instance
+          .collection('partners')
+          .doc(user.uid)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _saveFcmToken();
+    });
+
+    final lang = context.watch<LanguageProvider>().lang;
+    final t = AppStrings(lang);
+    final String partnerId =
+        FirebaseAuth.instance.currentUser!.uid;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: primaryGreen,
+        title: const Text(
+  'Ahra Partner',
+  style: TextStyle(
+    color: Colors.yellow, // 🔥 change here
+    fontWeight: FontWeight.bold,
+  ),
+),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.language, color: Colors.white),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                builder: (_) =>
+                    const LanguageScreen(fromSettings: true),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.badge),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PartnerIdCardScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle, color: Colors.orange),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PartnerProfileScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: const Text("Logout"),
+                    content:
+                        const Text("Do you want to log out?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Text("Cancel"),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await FirebaseAuth.instance.signOut();
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/login',
+                            (route) => false,
+                          );
+                        },
+                        child: const Text("OK"),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('partners')
+            .doc(partnerId)
+            .snapshots(),
+        builder: (context, snapshot) {
+
+          if (!snapshot.hasData) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+
+          final data =
+              snapshot.data!.data() as Map<String, dynamic>;
+
+          final int wallet =
+              ((data['walletBalance'] ?? 0) / 2).round();
+          final int today =
+              ((data['todayEarnings'] ?? 0) / 2).round();
+          final int week =
+              ((data['weekEarnings'] ?? 0) / 2).round();
+          final int month =
+              ((data['monthEarnings'] ?? 0) / 2).round();
+
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: primaryGreen,
+                  child: Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${t.welcome}, $partnerName 👋',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: contactRed,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const PartnerSupportScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.support_agent,
+                            size: 18),
+                        label: const Text(
+                          "Contact Us",
+                          style:
+                              TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                _partnerTypeHorizontal(context, t),
+
+                const SizedBox(height: 16),
+
+                _walletCard(context, t, wallet),
+
+                const SizedBox(height: 12),
+
+                // ✅ NEW BUTTON ADDED
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.pending_actions, color: Colors.white), // optional
+    label: Text(
+    t.myPaymentRequests,
+    style: const TextStyle(color: Colors.white),
+    ),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PartnerPendingRequestsScreen(
+                            partnerId: FirebaseAuth.instance.currentUser!.uid,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                _lastWithdrawStatusCard(),
+
+                const SizedBox(height: 16),
+
+                _paymentModeSelector(context, t),
+
+                const SizedBox(height: 16),
+
+                _earnings(t, today, week, month),
+
+                const SizedBox(height: 40),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ✅ Withdraw Status Card
+  Widget _lastWithdrawStatusCard() {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('withdraw_requests')
+          .where('partnerId', isEqualTo: uid)
+          .orderBy('requestedAt', descending: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+
+        if (!snapshot.hasData ||
+            snapshot.data!.docs.isEmpty) {
+          return const SizedBox();
+        }
+
+        final doc = snapshot.data!.docs.first;
+        final status = doc['status'];
+        final amount = doc['amount'];
+
+        Color statusColor = Colors.orange;
+
+        if (status == 'approved') {
+          statusColor = Colors.green;
+        } else if (status == 'rejected') {
+          statusColor = Colors.red;
+        }
+
+        return Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Last Withdraw: ₹ $amount",
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Text("Status: "),
+                      Text(
+                        status
+                            .toString()
+                            .toUpperCase(),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _paymentModeSelector(BuildContext context, AppStrings t) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Wrap(
+        spacing: 10,
+        children: [
+          ActionChip(
+            label: Text(t.daily),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PartnerWalletScreen(initialType: StatsType.daily),
+                ),
+              );
+            },
+          ),
+          ActionChip(
+            label: Text(t.weekly),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PartnerWalletScreen(initialType: StatsType.weekly),
+                ),
+              );
+            },
+          ),
+          ActionChip(
+            label: Text(t.monthly),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PartnerWalletScreen(initialType: StatsType.monthly),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _partnerTypeHorizontal(BuildContext context, AppStrings t) {
+    final items = [
+      {
+        'title': t.farmers,
+        'img': 'assets/partner_types/farmer.png',
+        'screen': const FarmerListScreen(),
+      },
+      {
+        'title': t.retailers,
+        'img': 'assets/partner_types/retailer.png',
+        'screen': const RetailerListScreen(),
+      },
+      {
+        'title': t.wholesalers,
+        'img': 'assets/partner_types/wholesaler.png',
+        'screen': const WholesalerListScreen(),
+      },
+      {
+        'title': t.processors,
+        'img': 'assets/partner_types/processor.png',
+        'screen': const ProcessorListScreen(),
+      },
+      {
+        'title': t.exporters,
+        'img': 'assets/partner_types/exporter.png',
+        'screen': const ExporterListScreen(),
+      },
+    ];
+
+    return SizedBox(
+      height: 90,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: items.length,
+        itemBuilder: (context, i) {
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => items[i]['screen'] as Widget,
+                ),
+              );
+            },
+            child: Container(
+              width: 70,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: lightGreen),
+              ),
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Image.asset(items[i]['img'] as String,
+                      height: 28),
+                  const SizedBox(height: 5),
+                  Text(
+  items[i]['title'] as String,
+  textAlign: TextAlign.center,
+  style: const TextStyle(
+    fontSize: 10,
+    fontWeight: FontWeight.w500,
+  ),
+)
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+Widget _walletCard(BuildContext context, AppStrings t, int wallet) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: SizedBox(
+      width: double.infinity, // ✅ full width
+      height: 130, // ✅ height increase (adjust if needed)
+      child: Card(
+        color: lightGreen,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+
+              // ✅ LEFT SIDE (Text)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    t.walletBalance,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '₹ $wallet',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+
+              // ✅ RIGHT SIDE (Button)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentOrange,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: wallet <= 0
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const WithdrawRouterScreen(),
+                          ),
+                        );
+                      },
+                child: Text(t.withdraw),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+  Widget _earnings(AppStrings t, int today, int week, int month) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          _earnCard(t.todayEarnings, today),
+          _earnCard(t.weekEarnings, week),
+          _earnCard(t.monthEarnings, month),
+        ],
+      ),
+    );
+  }
+
+  Widget _earnCard(String title, int amount) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.currency_rupee),
+        title: Text(title),
+        trailing: Text(
+          '₹ $amount',
+          style: const TextStyle(
+              fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
