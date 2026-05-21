@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "ahra-partner-fc558"
+  },
+  "targets": {
+    "ahra-partner-fc558": {
+      "hosting": {
+        "app": [
+          "ahra-partner-app"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
